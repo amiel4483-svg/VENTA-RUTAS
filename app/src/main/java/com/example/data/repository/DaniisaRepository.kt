@@ -224,8 +224,40 @@ class DaniisaRepository(
                             usuario = employeeName
                         )
                     )
-                } else {
-                    // Regular sale: reduce stock
+                }
+
+                // Handle Cambio Físico (C.F.) if specified on the item
+                if (item.cambioFisicoQty > 0) {
+                    database.returnDao().insertReturn(
+                        ReturnEntity(
+                            fecha = today,
+                            nDocOrig = nDoc,
+                            cliente = client.nombres,
+                            productoDevuelto = item.product.codigo,
+                            cantDevuelta = item.cambioFisicoQty,
+                            motivo = "Cambio Físico (C.F.) en venta $nDoc",
+                            productoCambio = item.product.codigo,
+                            cantCambio = item.cambioFisicoQty,
+                            usuario = employeeName
+                        )
+                    )
+                    database.movementDao().insertMovement(
+                        MovementEntity(
+                            codigo = item.product.codigo,
+                            fecha = today,
+                            tipo = "CAMBIO_FISICO",
+                            cantidad = item.cambioFisicoQty,
+                            usuario = employeeName,
+                            timestamp = now,
+                            observaciones = "Cambio Físico (${item.cambioFisicoQty} pzas) en $nDoc",
+                            stockResultante = currentStock,
+                            docRef = nDoc
+                        )
+                    )
+                }
+
+                // Regular sale: reduce stock
+                if (!item.esDevolucion && !item.esCambio) {
                     val newStock = maxOf(0.0, currentStock - item.cantidad)
                     database.productDao().updateStock(item.product.codigo, newStock)
                     database.movementDao().insertMovement(
@@ -281,7 +313,7 @@ class DaniisaRepository(
                     if (syncRes.isSuccess) {
                         database.saleDao().markSaleAsSynced(nDoc)
                     }
-                } catch (_: Exception) {
+                } catch (ignored: Exception) {
                     // Stays PENDIENTE for manual sync
                 }
             }
@@ -336,6 +368,58 @@ class DaniisaRepository(
             totalSyncedExpenses = syncedExpenses,
             pendingSalesCount = pendingSales.size - syncedSales,
             errors = errors
+        )
+    }
+
+    suspend fun closeDayAndSyncBatch(): SyncSummary = withContext(Dispatchers.IO) {
+        val activeSession = database.routeSessionDao().getActiveSession()
+        val allSalesList = database.saleDao().getAllSales().first()
+        val allDetailsList = database.saleDao().getAllSaleDetailsFlow().first()
+        val allReturnsList = database.returnDao().getAllReturns().first()
+        val allExpensesList = database.expenseDao().getAllExpenses().first()
+        val allProductsList = database.productDao().getAllProducts().first()
+        val allClientsList = database.clientDao().getAllClients().first()
+
+        val visitedCount = allSalesList.map { it.idTercero }.distinct().count()
+
+        val webAppUrl = getWebAppUrl()
+        val res = syncService.syncBatchCloseDayToServer(
+            webAppUrl = webAppUrl,
+            session = activeSession,
+            sales = allSalesList,
+            saleDetails = allDetailsList,
+            returns = allReturnsList,
+            expenses = allExpensesList,
+            products = allProductsList,
+            visitedClientsCount = visitedCount
+        )
+
+        // Mark local items as synced
+        val pendingSales = database.saleDao().getPendingSales()
+        pendingSales.forEach { database.saleDao().markSaleAsSynced(it.nDoc) }
+        val pendingReturns = database.returnDao().getPendingReturns()
+        pendingReturns.forEach { database.returnDao().markReturnAsSynced(it.id) }
+        val pendingExpenses = database.expenseDao().getPendingExpenses()
+        pendingExpenses.forEach { database.expenseDao().markExpenseAsSynced(it.id) }
+
+        // Update route session status
+        if (activeSession != null) {
+            val totalAmount = allSalesList.sumOf { it.total }
+            val updated = activeSession.copy(
+                endTime = getNowTimestamp(),
+                status = "COMPLETED",
+                totalSales = totalAmount,
+                totalTransactions = allSalesList.size
+            )
+            database.routeSessionDao().updateSession(updated)
+        }
+
+        SyncSummary(
+            totalSyncedSales = pendingSales.size,
+            totalSyncedReturns = pendingReturns.size,
+            totalSyncedExpenses = pendingExpenses.size,
+            pendingSalesCount = 0,
+            errors = if (res.isSuccess) emptyList() else listOf(res.exceptionOrNull()?.message ?: "Advertencia de sincronización")
         )
     }
 

@@ -300,6 +300,7 @@ fun DaniisaApp(
                             onAddProductToCart = { prod -> viewModel.addProductToCart(prod) },
                             onUpdateQuantity = { idx, qty -> viewModel.updateCartItemQuantity(idx, qty) },
                             onUpdatePrice = { idx, price -> viewModel.updateCartItemPrice(idx, price) },
+                            onUpdateCambioFisico = { idx, cfQty -> viewModel.updateCartItemCambioFisico(idx, cfQty) },
                             onRemoveItem = { idx -> viewModel.removeCartItem(idx) },
                             onSetReturn = { idx, isReturn, reason -> viewModel.setItemAsReturn(idx, isReturn, reason) },
                             onSetExchange = { idx, isEx, type, repl, reason -> viewModel.setItemAsExchange(idx, isEx, type, repl, reason) },
@@ -365,6 +366,7 @@ fun DaniisaApp(
                             isSyncing = isSyncing,
                             syncSummary = syncSummary,
                             onManualSync = { viewModel.performManualSync() },
+                            onCloseDayAndSync = { viewModel.closeDayAndSync() },
                             onExportPdf = {
                                 exportAllReportsSummary(context, sales, expenses, products)
                             },

@@ -139,6 +139,7 @@ data class CartItem(
     val product: ProductEntity,
     var cantidad: Double = 1.0,
     var precioUnitario: Double = product.precioVenta,
+    var cambioFisicoQty: Double = 0.0, // Cantidad de piezas para Cambio Físico (C.F.)
     var esDevolucion: Boolean = false,
     var esCambio: Boolean = false,
     var cambioTipo: String = "MISMO", // MISMO | OTRO

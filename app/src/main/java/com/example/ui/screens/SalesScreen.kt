@@ -46,6 +46,7 @@ fun SalesScreen(
     onAddProductToCart: (ProductEntity) -> Unit,
     onUpdateQuantity: (index: Int, qty: Double) -> Unit,
     onUpdatePrice: (index: Int, price: Double) -> Unit,
+    onUpdateCambioFisico: (index: Int, cfQty: Double) -> Unit = { _, _ -> },
     onRemoveItem: (index: Int) -> Unit,
     onSetReturn: (index: Int, isReturn: Boolean, reason: String) -> Unit,
     onSetExchange: (index: Int, isExchange: Boolean, type: String, replacement: ProductEntity?, reason: String) -> Unit,
@@ -71,17 +72,30 @@ fun SalesScreen(
     var newClientDni by remember { mutableStateOf("") }
     var newClientName by remember { mutableStateOf("") }
 
-    // Compute totals
+    // Compute totals (Mexican IVA 16%)
     val subtotal = remember(cartItems) {
         cartItems.sumOf { it.subtotal }
     }
-    val taxRate = 0.18 // 18% IGV
+    val taxRate = 0.16
     val taxAmount = subtotal * taxRate
     val grandTotal = subtotal + taxAmount
 
     val categories = remember(allProducts) {
         allProducts.map { it.grupo }.distinct().filter { it.isNotBlank() }
     }
+
+    // High contrast input color scheme
+    val highContrastFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color(0xFF0F172A),
+        unfocusedTextColor = Color(0xFF0F172A),
+        focusedLabelColor = DaniisaCyanDark,
+        unfocusedLabelColor = Color(0xFF334155),
+        focusedBorderColor = DaniisaCyan,
+        unfocusedBorderColor = Color(0xFF94A3B8),
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        cursorColor = DaniisaCyanDark
+    )
 
     // Filtered products dropdown when typing in search
     val searchResults = remember(searchQuery, selectedCategoryFilter, allProducts) {
@@ -118,12 +132,12 @@ fun SalesScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Nombre/Clave", fontSize = 14.sp, color = TextSecondary) },
+                        placeholder = { Text("Buscar nombre o clave...", fontSize = 13.sp, color = Color(0xFF64748B)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Buscar",
-                                tint = TextSecondary,
+                                tint = DaniisaCyanDark,
                                 modifier = Modifier.size(20.dp)
                             )
                         },
@@ -141,10 +155,7 @@ fun SalesScreen(
                         },
                         shape = RoundedCornerShape(8.dp),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = BorderLight,
-                            focusedBorderColor = DaniisaCyan
-                        ),
+                        colors = highContrastFieldColors,
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
@@ -154,7 +165,8 @@ fun SalesScreen(
                     // Category Filter Icon Button
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (selectedCategoryFilter != null) DaniisaCyanLight else Color(0xFFF1F5F9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedCategoryFilter != null) DaniisaCyan else Color(0xFF94A3B8)),
+                        color = if (selectedCategoryFilter != null) DaniisaCyanLight else Color.White,
                         modifier = Modifier
                             .size(48.dp)
                             .clickable { showCategoryFilterDialog = true }
@@ -163,7 +175,7 @@ fun SalesScreen(
                             Icon(
                                 imageVector = Icons.Default.Category,
                                 contentDescription = "Filtrar categoría",
-                                tint = if (selectedCategoryFilter != null) DaniisaCyan else TextPrimary,
+                                tint = if (selectedCategoryFilter != null) DaniisaCyanDark else Color(0xFF0F172A),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -172,7 +184,8 @@ fun SalesScreen(
                     // Client Selector Button
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFF1F5F9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF94A3B8)),
+                        color = Color.White,
                         modifier = Modifier
                             .size(48.dp)
                             .clickable { showAddClientDialog = true }
@@ -181,7 +194,7 @@ fun SalesScreen(
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Seleccionar cliente",
-                                tint = TextPrimary,
+                                tint = Color(0xFF0F172A),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -190,7 +203,8 @@ fun SalesScreen(
                     // Barcode Scanner Button
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFF1F5F9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF94A3B8)),
+                        color = Color.White,
                         modifier = Modifier
                             .size(48.dp)
                             .clickable { showBarcodeDialog = true }
@@ -199,14 +213,14 @@ fun SalesScreen(
                             Icon(
                                 imageVector = Icons.Default.QrCodeScanner,
                                 contentDescription = "Escanear código",
-                                tint = TextPrimary,
+                                tint = Color(0xFF0F172A),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
                     }
                 }
 
-                // Dropdown suggestions when typing in search
+                // Dropdown suggestions when typing in search with product images and stock
                 if (searchResults.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Card(
@@ -218,7 +232,7 @@ fun SalesScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 200.dp)
+                                .heightIn(max = 220.dp)
                         ) {
                             searchResults.take(6).forEach { prod ->
                                 Row(
@@ -232,14 +246,34 @@ fun SalesScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(prod.nombre, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("Stock: ${prod.stockActual} ${prod.unidad} | ${prod.grupo}", fontSize = 11.sp, color = TextSecondary)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = DaniisaCyanLight,
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.LocalShipping,
+                                                    contentDescription = null,
+                                                    tint = DaniisaCyanDark,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Column {
+                                            Text(prod.nombre, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                            Text("Stock: ${String.format(Locale.getDefault(), "%.0f", prod.stockActual)} ${prod.unidad} | ${prod.grupo}", fontSize = 11.sp, color = Color(0xFF475569))
+                                        }
                                     }
                                     Text(
-                                        "S/ ${String.format(Locale.getDefault(), "%.2f", prod.precioVenta)}",
-                                        fontWeight = FontWeight.Bold,
-                                        color = DaniisaCyan
+                                        "$ ${String.format(Locale.getDefault(), "%.2f", prod.precioVenta)}",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = DaniisaCyanDark
                                     )
                                 }
                                 Divider(color = Color(0xFFF1F5F9))
@@ -282,8 +316,8 @@ fun SalesScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("No hay artículos en la venta actual", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Busque productos arriba o escanee un código para agregarlos.", fontSize = 12.sp, color = TextSecondary)
+                            Text("No hay artículos en la venta actual", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                            Text("Busque productos arriba o escanee un código para agregarlos.", fontSize = 12.sp, color = Color(0xFF475569))
                         }
                     }
                 }
@@ -294,13 +328,14 @@ fun SalesScreen(
                         index = index,
                         onUpdateQuantity = { qty -> onUpdateQuantity(index, qty) },
                         onUpdatePrice = { price -> onUpdatePrice(index, price) },
+                        onUpdateCambioFisico = { cfQty -> onUpdateCambioFisico(index, cfQty) },
                         onRemove = { onRemoveItem(index) },
                         onOpenReturnExchange = { selectedItemForReturnExchangeIndex = index }
                     )
                 }
             }
 
-            // Payment Status (Pagado vs Por Cobrar) - Matching screenshot
+            // Payment Status (Pagado vs Por Cobrar)
             item {
                 Row(
                     modifier = Modifier
@@ -318,9 +353,9 @@ fun SalesScreen(
                         RadioButton(
                             selected = paymentStatus == "PAGADO",
                             onClick = { onSetPaymentStatus("PAGADO") },
-                            colors = RadioButtonDefaults.colors(selectedColor = DaniisaCyan)
+                            colors = RadioButtonDefaults.colors(selectedColor = DaniisaCyanDark)
                         )
-                        Text("Pagado", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Pagado", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                     }
 
                     Row(
@@ -332,16 +367,17 @@ fun SalesScreen(
                             onClick = { onSetPaymentStatus("POR_COBRAR") },
                             colors = RadioButtonDefaults.colors(selectedColor = DaniisaOrange)
                         )
-                        Text("Por Cobrar", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Por Cobrar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                     }
                 }
             }
 
-            // Green Total Badge Card - Matching screenshot "%+ Total $ ..."
+            // Green Total Badge Card with Mexican Pesos ($)
             item {
                 Card(
                     shape = RoundedCornerShape(10.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -371,13 +407,13 @@ fun SalesScreen(
                                 text = "+% Total $",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = Color(0xFF0F172A)
                             )
                         }
 
                         Text(
-                            text = "S/ ${String.format(Locale.getDefault(), "%.2f", grandTotal)}",
-                            fontSize = 20.sp,
+                            text = "$ ${String.format(Locale.getDefault(), "%.2f", grandTotal)}",
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = DaniisaGreenDark
                         )
@@ -385,61 +421,68 @@ fun SalesScreen(
                 }
             }
 
-            // Client Field (Optional)
+            // Client Field with High-Contrast Typography
             item {
                 OutlinedTextField(
                     value = selectedClient.nombres,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Cliente (opcional)") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = TextSecondary) },
+                    label = { Text("Cliente (opcional)", fontWeight = FontWeight.SemiBold) },
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    ),
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = DaniisaCyanDark) },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = {
                                 onSelectClient(ClientEntity("00000000", "CLIENTE GENÉRICO", "Mostrador", "000000000"))
                             }) {
-                                Icon(Icons.Default.Close, contentDescription = "Limpiar cliente", tint = TextSecondary)
+                                Icon(Icons.Default.Close, contentDescription = "Limpiar cliente", tint = Color(0xFF475569))
                             }
                             IconButton(onClick = { showAddClientDialog = true }) {
-                                Icon(Icons.Default.PersonAdd, contentDescription = "Cambiar/Agregar cliente", tint = DaniisaCyan)
+                                Icon(Icons.Default.PersonAdd, contentDescription = "Cambiar/Agregar cliente", tint = DaniisaCyanDark)
                             }
                         }
                     },
                     shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    colors = highContrastFieldColors,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sales_client_field")
                 )
             }
 
-            // Payment Method Field (Optional)
+            // Payment Method Field with High-Contrast Typography
             item {
                 OutlinedTextField(
                     value = paymentMethod,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Forma de pago (opcional)") },
-                    leadingIcon = { Icon(Icons.Default.Payment, contentDescription = null, tint = TextSecondary) },
+                    label = { Text("Forma de pago", fontWeight = FontWeight.SemiBold) },
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    ),
+                    leadingIcon = { Icon(Icons.Default.Payment, contentDescription = null, tint = DaniisaCyanDark) },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { onSetPaymentMethod("Efectivo") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Por defecto", tint = TextSecondary)
+                                Icon(Icons.Default.Close, contentDescription = "Por defecto", tint = Color(0xFF475569))
                             }
                             IconButton(onClick = { showPaymentMethodDialog = true }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Elegir forma de pago")
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Elegir forma de pago", tint = DaniisaCyanDark)
                             }
                         }
                     },
                     shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    ),
+                    colors = highContrastFieldColors,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { showPaymentMethodDialog = true }
+                        .testTag("sales_payment_method_field")
                 )
             }
 
@@ -449,27 +492,64 @@ fun SalesScreen(
                     OutlinedTextField(
                         value = cashReceived,
                         onValueChange = onSetCashReceived,
-                        label = { Text("Efectivo recibido (S/)") },
-                        placeholder = { Text("Ej. 50.00") },
-                        leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = DaniisaGreen) },
+                        label = { Text("Efectivo recibido $ (opcional)", fontWeight = FontWeight.SemiBold) },
+                        placeholder = { Text("0.00", color = Color(0xFF64748B)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = DaniisaGreenDark) },
+                        textStyle = LocalTextStyle.current.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(8.dp),
+                        colors = highContrastFieldColors,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("sales_cash_received_field")
                     )
+                }
+
+                val receivedNum = cashReceived.toDoubleOrNull() ?: 0.0
+                if (receivedNum > 0) {
+                    val changeDue = maxOf(0.0, receivedNum - grandTotal)
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (changeDue >= 0) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (receivedNum >= grandTotal) "Cambio a entregar:" else "Faltante:",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A),
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "$ ${String.format(Locale.getDefault(), "%.2f", if (receivedNum >= grandTotal) changeDue else grandTotal - receivedNum)}",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.sp,
+                                    color = if (receivedNum >= grandTotal) DaniisaGreenDark else DaniisaRed
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            // Tag Field (Optional)
+            // Tag Field
             item {
                 OutlinedTextField(
                     value = tag,
                     onValueChange = onSetTag,
-                    label = { Text("Etiqueta (opcional)") },
-                    placeholder = { Text("Ej. Ruta Norte, Mayorista, Urgente...") },
+                    label = { Text("Etiqueta (opcional)", fontWeight = FontWeight.SemiBold) },
+                    placeholder = { Text("Ej: Turno Mañana, Pedido Especial", color = Color(0xFF64748B)) },
+                    singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Label, contentDescription = null, tint = TextSecondary) },
                     trailingIcon = {
                         if (tag.isNotEmpty()) {
@@ -479,10 +559,12 @@ fun SalesScreen(
                         }
                     },
                     shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A)
                     ),
+                    colors = highContrastFieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -492,15 +574,18 @@ fun SalesScreen(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = onSetNotes,
-                    label = { Text("Información adicional de la venta (opcional)") },
-                    placeholder = { Text("Observaciones del pedido o entrega...") },
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = TextSecondary) },
+                    label = { Text("Notas adicionales (opcional)", fontWeight = FontWeight.SemiBold) },
+                    placeholder = { Text("Observaciones del cliente o la entrega...", color = Color(0xFF64748B)) },
+                    singleLine = false,
                     maxLines = 2,
+                    leadingIcon = { Icon(Icons.Default.Notes, contentDescription = null, tint = TextSecondary) },
                     shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A)
                     ),
+                    colors = highContrastFieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -747,11 +832,13 @@ fun ProductCartCard(
     index: Int,
     onUpdateQuantity: (Double) -> Unit,
     onUpdatePrice: (Double) -> Unit,
+    onUpdateCambioFisico: (Double) -> Unit = {},
     onRemove: () -> Unit,
     onOpenReturnExchange: () -> Unit
 ) {
     var quantityText by remember(item.cantidad) { mutableStateOf(item.cantidad.toString().removeSuffix(".0")) }
-    var priceText by remember(item.precioUnitario) { mutableStateOf(item.precioUnitario.toString()) }
+    var priceText by remember(item.precioUnitario) { mutableStateOf(String.format(Locale.getDefault(), "%.2f", item.precioUnitario)) }
+    var cfText by remember(item.cambioFisicoQty) { mutableStateOf(if (item.cambioFisicoQty > 0) item.cambioFisicoQty.toString().removeSuffix(".0") else "") }
     var showInfoDialog by remember { mutableStateOf(false) }
 
     Card(
@@ -761,25 +848,41 @@ fun ProductCartCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
-            // Header with box icon and product name
+            // Header with product icon/thumbnail, code, name, and stock height
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Inventory2,
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = item.product.nombre,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.DarkGray,
-                    modifier = Modifier.weight(1f)
-                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = DaniisaCyanLight,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = DaniisaCyanDark,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.product.nombre,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Clave: ${item.product.codigo} | Stock: ${String.format(Locale.getDefault(), "%.0f", item.product.stockActual)} ${item.product.unidad}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (item.product.stockActual <= item.product.stockMin) DaniisaRed else Color(0xFF475569)
+                    )
+                }
             }
 
             // Return / Exchange Badge indicator
@@ -790,7 +893,7 @@ fun ProductCartCard(
                     modifier = Modifier.padding(top = 4.dp)
                 ) {
                     Text(
-                        text = "DEVOLUCIÓN (-S/ ${String.format(Locale.getDefault(), "%.2f", item.cantidad * item.precioUnitario)}) ${if (item.motivoCambio.isNotBlank()) "- ${item.motivoCambio}" else ""}",
+                        text = "DEVOLUCIÓN (-$ ${String.format(Locale.getDefault(), "%.2f", item.cantidad * item.precioUnitario)}) ${if (item.motivoCambio.isNotBlank()) "- ${item.motivoCambio}" else ""}",
                         color = DaniisaRed,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -815,60 +918,72 @@ fun ProductCartCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Subheaders: Cantidad | Venta $ | Subtotal $
+            // Subheaders: Cantidad | Venta $ | C.F. | Subtotal $
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Cantidad",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.weight(1.3f)
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF334155),
+                    modifier = Modifier.weight(1.1f)
                 )
                 Text(
                     text = "Venta $",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF334155),
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.9f)
+                )
+                Text(
+                    text = "C.F.",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DaniisaOrangeDark,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(0.7f)
                 )
                 Text(
                     text = "Subtotal $",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF334155),
                     textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1.0f)
                 )
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Input Row: (-) [Qty] (+) | [Price] | [Subtotal]
+            // Input Row: (-) [Qty] (+) | [Price] | [C.F.] | [Subtotal]
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Quantity Steppers Box
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .weight(1.3f)
+                        .weight(1.1f)
                         .border(1.5.dp, DaniisaOrange, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
                 ) {
                     IconButton(
                         onClick = {
                             val newQ = maxOf(0.0, item.cantidad - 1)
                             onUpdateQuantity(newQ)
                         },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.RemoveCircleOutline,
                             contentDescription = "Disminuir",
-                            tint = Color.Gray
+                            tint = Color(0xFF475569)
                         )
                     }
 
@@ -881,30 +996,37 @@ fun ProductCartCard(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
                             unfocusedBorderColor = Color.Transparent,
                             focusedBorderColor = Color.Transparent
                         ),
-                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                        textStyle = LocalTextStyle.current.copy(
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(40.dp)
+                            .height(38.dp)
                     )
 
                     IconButton(
                         onClick = {
                             onUpdateQuantity(item.cantidad + 1)
                         },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddCircleOutline,
                             contentDescription = "Aumentar",
-                            tint = Color.Gray
+                            tint = Color(0xFF475569)
                         )
                     }
                 }
 
-                // Price Input Field
+                // Price Input Field with High-Contrast Text
                 OutlinedTextField(
                     value = priceText,
                     onValueChange = {
@@ -914,23 +1036,63 @@ fun ProductCartCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = BorderLight,
-                        focusedBorderColor = DaniisaCyan
+                        focusedTextColor = Color(0xFF0F172A),
+                        unfocusedTextColor = Color(0xFF0F172A),
+                        unfocusedBorderColor = Color(0xFF94A3B8),
+                        focusedBorderColor = DaniisaCyanDark,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
                     ),
-                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                    textStyle = LocalTextStyle.current.copy(
+                        textAlign = TextAlign.Center,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F172A)
+                    ),
                     modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
+                        .weight(0.9f)
+                        .height(42.dp)
                 )
 
-                // Subtotal text display
+                // C.F. (Cambio Físico) Input Field specifically between Venta $ and Subtotal $
+                OutlinedTextField(
+                    value = cfText,
+                    onValueChange = {
+                        cfText = it
+                        val q = it.toDoubleOrNull() ?: 0.0
+                        onUpdateCambioFisico(q)
+                    },
+                    placeholder = { Text("0", textAlign = TextAlign.Center, color = Color(0xFF94A3B8), fontSize = 12.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = DaniisaOrangeDark,
+                        unfocusedTextColor = DaniisaOrangeDark,
+                        unfocusedBorderColor = Color(0xFFFFCC80),
+                        focusedBorderColor = DaniisaOrange,
+                        focusedContainerColor = Color(0xFFFFF8E1),
+                        unfocusedContainerColor = Color(0xFFFFF8E1)
+                    ),
+                    textStyle = LocalTextStyle.current.copy(
+                        textAlign = TextAlign.Center,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = DaniisaOrangeDark
+                    ),
+                    modifier = Modifier
+                        .weight(0.7f)
+                        .height(42.dp)
+                        .testTag("cf_input_field_$index")
+                )
+
+                // Subtotal text display in Mexican Pesos ($)
                 Text(
-                    text = "S/ ${String.format(Locale.getDefault(), "%.2f", item.subtotal)}",
+                    text = "$ ${String.format(Locale.getDefault(), "%.2f", item.subtotal)}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.End,
                     color = if (item.subtotal < 0) DaniisaRed else DaniisaCyanDark,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1.0f)
                 )
             }
 
@@ -946,7 +1108,7 @@ fun ProductCartCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Info Icon (i) - Matching screenshot
+                    // Info Icon (i)
                     Surface(
                         shape = CircleShape,
                         color = Color(0xFF29B6F6),
@@ -959,7 +1121,7 @@ fun ProductCartCard(
                         }
                     }
 
-                    // Cambio y Devolución Button (between Venta$ and Subtotal$ logic)
+                    // Cambio y Devolución Button
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = if (item.esDevolucion) DaniisaRedLight else if (item.esCambio) DaniisaCyanLight else Color(0xFFF1F5F9),
@@ -973,7 +1135,7 @@ fun ProductCartCard(
                             Icon(
                                 imageVector = Icons.Default.SwapHoriz,
                                 contentDescription = "Cambio o Devolución",
-                                tint = if (item.esDevolucion) DaniisaRed else if (item.esCambio) DaniisaCyan else TextPrimary,
+                                tint = if (item.esDevolucion) DaniisaRed else if (item.esCambio) DaniisaCyan else Color(0xFF0F172A),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -981,7 +1143,7 @@ fun ProductCartCard(
                                 text = if (item.esDevolucion) "Devolución" else if (item.esCambio) "Cambio" else "Cambio/Dev",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (item.esDevolucion) DaniisaRed else if (item.esCambio) DaniisaCyan else TextPrimary
+                                color = if (item.esDevolucion) DaniisaRed else if (item.esCambio) DaniisaCyan else Color(0xFF0F172A)
                             )
                         }
                     }
@@ -991,14 +1153,13 @@ fun ProductCartCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Discount / Tax (+%) Icon - Matching screenshot
+                    // Discount / Tax (+%) Icon
                     Surface(
                         shape = CircleShape,
                         color = DaniisaOrange,
                         modifier = Modifier
                             .size(28.dp)
                             .clickable {
-                                // Quick 10% discount toggle
                                 val discounted = item.product.precioVenta * 0.9
                                 onUpdatePrice(discounted)
                                 priceText = String.format(Locale.getDefault(), "%.2f", discounted)
@@ -1009,7 +1170,7 @@ fun ProductCartCard(
                         }
                     }
 
-                    // Red Square Delete (X) Icon - Matching screenshot
+                    // Red Square Delete (X) Icon
                     Surface(
                         shape = RoundedCornerShape(4.dp),
                         border = androidx.compose.foundation.BorderStroke(1.5.dp, DaniisaRed),
@@ -1035,15 +1196,15 @@ fun ProductCartCard(
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            title = { Text(item.product.nombre) },
+            title = { Text(item.product.nombre, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Código: ${item.product.codigo}")
+                    Text("Clave: ${item.product.codigo}", fontWeight = FontWeight.SemiBold)
                     Text("Categoría: ${item.product.grupo}")
                     Text("Unidad: ${item.product.unidad}")
-                    Text("Stock actual en vehículo: ${item.product.stockActual} ${item.product.unidad}")
-                    Text("Precio Lista: S/ ${String.format(Locale.getDefault(), "%.2f", item.product.precioVenta)}")
-                    Text("Precio Compra Base: S/ ${String.format(Locale.getDefault(), "%.2f", item.product.precioCompra)}")
+                    Text("Stock actual: ${String.format(Locale.getDefault(), "%.0f", item.product.stockActual)} ${item.product.unidad}")
+                    Text("Precio Venta: $ ${String.format(Locale.getDefault(), "%.2f", item.product.precioVenta)}", fontWeight = FontWeight.Bold, color = DaniisaCyanDark)
+                    Text("Precio Compra: $ ${String.format(Locale.getDefault(), "%.2f", item.product.precioCompra)}")
                 }
             },
             confirmButton = {

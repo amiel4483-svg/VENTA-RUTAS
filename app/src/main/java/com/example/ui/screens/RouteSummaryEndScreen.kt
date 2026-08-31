@@ -34,6 +34,7 @@ fun RouteSummaryEndScreen(
     isSyncing: Boolean,
     syncSummary: SyncSummary?,
     onManualSync: () -> Unit,
+    onCloseDayAndSync: () -> Unit = {},
     onExportPdf: () -> Unit,
     onStartNewRoute: () -> Unit
 ) {
@@ -42,7 +43,8 @@ fun RouteSummaryEndScreen(
     val totalPorCobrar = remember(sales) { sales.filter { it.estadoPago == "POR_COBRAR" }.sumOf { it.total } }
     val totalGastos = remember(expenses) { expenses.sumOf { it.monto } }
     val efectivoTeoricoEnMano = initialCash + totalCobrado - totalGastos
-    val pendingSync = sales.count { it.syncStatus == "PENDIENTE" }
+    val pendingSync = sales.count { it.syncStatus == "PENDIENTE" } + expenses.count { it.syncStatus == "PENDIENTE" } + returns.count { it.syncStatus == "PENDIENTE" }
+    var showConfirmCloseDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -225,32 +227,91 @@ fun RouteSummaryEndScreen(
 
         // Action buttons
         item {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedButton(
-                    onClick = onExportPdf,
+                // Primary Action: Cerrar Jornada y Sincronizar Masivamente
+                Button(
+                    onClick = { showConfirmCloseDialog = true },
+                    enabled = !isSyncing,
+                    colors = ButtonDefaults.buttonColors(containerColor = DaniisaGreen),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("confirm_close_day_button")
                 ) {
-                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = DaniisaRed)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Exportar PDF")
+                    if (isSyncing) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sincronizando Cierre...", fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(Icons.Default.CloudSync, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Confirmar Cierre de Día y Sincronizar", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
                 }
 
-                Button(
-                    onClick = onStartNewRoute,
-                    colors = ButtonDefaults.buttonColors(containerColor = DaniisaCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.RestartAlt, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Nueva Ruta")
+                    OutlinedButton(
+                        onClick = onExportPdf,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = DaniisaRed)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Exportar PDF")
+                    }
+
+                    Button(
+                        onClick = onStartNewRoute,
+                        colors = ButtonDefaults.buttonColors(containerColor = DaniisaCyan),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.RestartAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Nueva Ruta")
+                    }
                 }
             }
         }
+    }
+
+    if (showConfirmCloseDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmCloseDialog = false },
+            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DaniisaGreenDark, modifier = Modifier.size(36.dp)) },
+            title = { Text("Confirmar Cierre de Jornada", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Al confirmar, se guardará el resumen consolidado de la jornada y se enviarán masivamente todos los comprobantes, devoluciones y gastos a Google Sheets.")
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("• Ventas realizadas: ${sales.size}", fontWeight = FontWeight.SemiBold)
+                    Text("• Total a liquidar: $ ${String.format(Locale.getDefault(), "%.2f", efectivoTeoricoEnMano)}", fontWeight = FontWeight.Bold, color = DaniisaGreenDark)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirmCloseDialog = false
+                        onCloseDayAndSync()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DaniisaGreen)
+                ) {
+                    Text("Sí, Cerrar y Sincronizar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmCloseDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

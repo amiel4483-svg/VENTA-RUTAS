@@ -36,13 +36,14 @@ import java.util.Locale
 fun TicketDialog(
     sale: SaleHeaderEntity,
     details: List<SaleDetailEntity>,
+    businessName: String = "DISTRIBUIDORA DANIISA",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var format by remember { mutableStateOf("80mm") } // 58mm | 80mm | A4
 
-    val htmlTicket = remember(sale, details, format) {
-        generateTicketHtml(sale, details, format)
+    val htmlTicket = remember(sale, details, format, businessName) {
+        generateTicketHtml(sale, details, format, businessName)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -114,7 +115,7 @@ fun TicketDialog(
                     color = Color(0xFFFAFAFA),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
+                        .height(320.dp)
                         .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
@@ -123,23 +124,47 @@ fun TicketDialog(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
+                        // Business Logo & Brand Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = DaniisaCyan,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocalShipping,
+                                        contentDescription = "Logo",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = businessName.ifBlank { "DISTRIBUIDORA DANIISA" },
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+
                         Text(
-                            text = "DISTRIBUIDORA DANIISA",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        Text(
-                            text = "Venta en Ruta - QASO ERP",
+                            text = "Venta en Ruta - Sistema POS Móvil",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                         Text(
-                            text = "--------------------------------",
+                            text = "================================",
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                         Text(
@@ -161,7 +186,7 @@ fun TicketDialog(
                         )
                         if (sale.idTercero.isNotEmpty() && sale.idTercero != "00000000") {
                             Text(
-                                text = "Doc: ${sale.idTercero}",
+                                text = "Doc/RFC: ${sale.idTercero}",
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp
                             )
@@ -229,7 +254,7 @@ fun TicketDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("IGV (18%):", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                            Text("IVA (16%):", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                             Text("$ ${String.format(Locale.getDefault(), "%.2f", sale.impuesto)}", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                         }
 
@@ -260,8 +285,9 @@ fun TicketDialog(
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "¡Gracias por su preferencia!",
+                            text = "¡Gracias por su compra!",
                             fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
@@ -280,7 +306,7 @@ fun TicketDialog(
                                 type = "text/plain"
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    "Ticket ${sale.nDoc} - DISTRIBUIDORA DANIISA\nCliente: ${sale.nombreTercero}\nTotal: $ ${String.format(Locale.getDefault(), "%.2f", sale.total)}\nGracias por su compra."
+                                    "Ticket ${sale.nDoc} - ${businessName.ifBlank { "DISTRIBUIDORA DANIISA" }}\nCliente: ${sale.nombreTercero}\nTotal: $ ${String.format(Locale.getDefault(), "%.2f", sale.total)}\nGracias por su compra."
                                 )
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Compartir ticket"))
@@ -331,7 +357,12 @@ private fun printHtmlTicket(context: Context, html: String, jobName: String) {
     }
 }
 
-fun generateTicketHtml(sale: SaleHeaderEntity, details: List<SaleDetailEntity>, format: String): String {
+fun generateTicketHtml(
+    sale: SaleHeaderEntity,
+    details: List<SaleDetailEntity>,
+    format: String,
+    businessName: String = "DISTRIBUIDORA DANIISA"
+): String {
     val itemsHtml = details.joinToString("") {
         """
         <tr><td colspan="2" style="font-weight:600;padding-bottom:1px">${it.nombre}</td></tr>
@@ -355,30 +386,38 @@ fun generateTicketHtml(sale: SaleHeaderEntity, details: List<SaleDetailEntity>, 
         .lin2 { border-top: 2px solid #000; margin: 4px 0; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 2px 0; }
+        .logo-box { text-align: center; margin-bottom: 4px; }
       </style>
     </head>
     <body>
-      <div class="c b" style="font-size:1.2em">DISTRIBUIDORA DANIISA</div>
-      <div class="c" style="font-size:0.85em">Venta en Ruta - QASO ERP</div>
+      <div class="logo-box">
+        <div class="c b" style="font-size:1.3em; letter-spacing: 1px;">🏢 ${businessName.ifBlank { "DISTRIBUIDORA DANIISA" }}</div>
+        <div class="c" style="font-size:0.85em; color: #333;">VENTAS EN RUTA - SISTEMA POS MÓVIL</div>
+      </div>
       <div class="lin2"></div>
       <div class="c b">${sale.tipoDoc} N° ${sale.nDoc}</div>
       <div class="lin"></div>
-      <div>Fecha : ${sale.fecha}</div>
+      <div>Fecha   : ${sale.fecha} ${sale.timestamp.takeLast(8)}</div>
       <div>Cliente : ${sale.nombreTercero}</div>
+      ${if (sale.idTercero.isNotEmpty() && sale.idTercero != "00000000") "<div>Doc/RFC : ${sale.idTercero}</div>" else ""}
       <div>Vendedor: ${sale.empleado}</div>
-      <div>Pago : ${sale.formaPago} (${sale.estadoPago})</div>
+      <div>Pago    : ${sale.formaPago} (${sale.estadoPago})</div>
       <div class="lin2"></div>
       <table>$itemsHtml</table>
       <div class="lin"></div>
       <table>
         <tr><td>Subtotal :</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.subtotal)}</td></tr>
-        <tr><td>IGV (18%) :</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.impuesto)}</td></tr>
+        <tr><td>IVA (16%):</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.impuesto)}</td></tr>
         <tr style="font-weight:bold; font-size:1.2em; border-top:1px solid #000;">
           <td>TOTAL :</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.total)}</td>
         </tr>
+        ${if (sale.efectivoRecibido > 0) """
+        <tr><td>Efectivo:</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.efectivoRecibido)}</td></tr>
+        <tr><td>Cambio  :</td><td style="text-align:right">$ ${String.format(Locale.getDefault(), "%.2f", sale.cambio)}</td></tr>
+        """.trimIndent() else ""}
       </table>
       <div class="lin"></div>
-      <div class="c" style="margin-top:4px">¡Gracias por su preferencia!</div>
+      <div class="c b" style="margin-top:6px">¡GRACIAS POR SU COMPRA!</div>
     </body>
     </html>
     """.trimIndent()

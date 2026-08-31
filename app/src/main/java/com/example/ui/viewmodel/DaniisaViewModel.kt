@@ -101,10 +101,14 @@ class DaniisaViewModel(
     private val _webAppUrl = MutableStateFlow("https://script.google.com/macros/s/AKfycbz_daniisa_endpoint/exec")
     val webAppUrl: StateFlow<String> = _webAppUrl.asStateFlow()
 
+    private val _businessName = MutableStateFlow("DISTRIBUIDORA DANIISA")
+    val businessName: StateFlow<String> = _businessName.asStateFlow()
+
     init {
         viewModelScope.launch {
             _spreadsheetId.value = repository.getSpreadsheetId()
             _webAppUrl.value = repository.getWebAppUrl()
+            _businessName.value = repository.getConfig("NEGOCIO_NOMBRE", "DISTRIBUIDORA DANIISA")
             
             // Check if there is an active session
             currentSessionFlow.collect { session ->
@@ -212,6 +216,14 @@ class DaniisaViewModel(
         val currentItems = _uiState.value.cartItems.toMutableList()
         if (index in currentItems.indices) {
             currentItems[index] = currentItems[index].copy(precioUnitario = newPrice)
+            _uiState.update { it.copy(cartItems = currentItems) }
+        }
+    }
+
+    fun updateCartItemCambioFisico(index: Int, cfQty: Double) {
+        val currentItems = _uiState.value.cartItems.toMutableList()
+        if (index in currentItems.indices) {
+            currentItems[index] = currentItems[index].copy(cambioFisicoQty = maxOf(0.0, cfQty))
             _uiState.update { it.copy(cartItems = currentItems) }
         }
     }
@@ -360,6 +372,26 @@ class DaniisaViewModel(
         }
     }
 
+    fun closeDayAndSync() {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val summary = repository.closeDayAndSyncBatch()
+                _syncSummary.value = summary
+                _uiState.update { it.copy(isRouteActive = false) }
+                if (summary.errors.isEmpty()) {
+                    showMessage("¡Cierre de jornada completado y sincronizado exitosamente con el servidor central!")
+                } else {
+                    showMessage("Cierre guardado localmente con éxito.")
+                }
+            } catch (e: Exception) {
+                showMessage("Cierre completado localmente: ${e.message}")
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
     // Settings
     fun updateSpreadsheetId(newId: String) {
         viewModelScope.launch {
@@ -413,7 +445,7 @@ class DaniisaViewModel(
                     responsable = _uiState.value.activeEmployee
                 )
             )
-            showMessage("Gasto de S/ $monto registrado correctamente.")
+            showMessage("Gasto de $ $monto registrado correctamente.")
         }
     }
 
@@ -472,6 +504,7 @@ class DaniisaViewModel(
             repository.updateConfig("TICKET_STATUS", addStatus.toString())
             repository.updateConfig("TICKET_LOGO", addLogo.toString())
             repository.updateConfig("TICKET_CLIENTE_INFO", addClientInfo.toString())
+            _businessName.value = name
             showMessage("Datos de 'Mi Negocio' actualizados correctamente.")
         }
     }

@@ -24,6 +24,7 @@ import com.example.ui.viewmodel.AppScreen
 @Composable
 fun TopNavBar(
     currentScreen: AppScreen,
+    businessName: String = "DISTRIBUIDORA DANIISA",
     subtitle: String = "Ventas",
     pendingSyncCount: Int = 0,
     onNavigate: (AppScreen) -> Unit,
@@ -63,7 +64,7 @@ fun TopNavBar(
                     .padding(horizontal = 4.dp)
             ) {
                 Text(
-                    text = "DISTRIBUIDORA DANIISA",
+                    text = businessName.ifBlank { "DISTRIBUIDORA DANIISA" },
                     color = Color.White,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
