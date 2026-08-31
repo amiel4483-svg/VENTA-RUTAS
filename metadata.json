@@ -1,0 +1,6 @@
+{
+  "name": "Distribuidora Daniisa",
+  "description": "Aplicación de ventas en ruta para Distribuidora Daniisa con control de stock en tiempo real, modo offline, sincronización con hoja de cálculo central y panel de reportes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
